@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Sat, 28 Dec 2024 21:59:24 -0600
+Subject: [PATCH] Don't count trades not added towards addOffers
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/npc/AbstractVillager.java b/src/main/java/net/minecraft/world/entity/npc/AbstractVillager.java
+index 8a907164cb1f8a51c46a3e6f578867545a83a73a..4511734df5731663f04d0a64bed0037c0471c308 100644
+--- a/src/main/java/net/minecraft/world/entity/npc/AbstractVillager.java
++++ b/src/main/java/net/minecraft/world/entity/npc/AbstractVillager.java
+@@ -299,9 +299,10 @@ public abstract class AbstractVillager extends AgeableMob implements InventoryCa
+                     if (craftMerchantRecipe.getIngredients().isEmpty()) return;
+                     recipeList.add(craftMerchantRecipe.toMinecraft());
+                     // Paper end - Fix crash from invalid ingredient list
++                    ++j; // SMPOnline - Fix no trade behavior before exhausting the pool
+                 }
+                 // CraftBukkit end
+-                ++j;
++
+             }
+         }
+ 

@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Sat, 28 Dec 2024 18:11:36 -0600
+Subject: [PATCH] Add linear XP config entries
+
+
+diff --git a/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java b/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
+index 7e906e8324280ef80222305812527886e7b7ce9e..94c251ee0cda8df45ffe3c5d7ff076bd428f59cc 100644
+--- a/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
++++ b/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
+@@ -344,6 +344,8 @@ public class GlobalConfiguration extends ConfigurationPart {
+         public IntOr.Default compressionLevel = IntOr.Default.USE_DEFAULT;
+         @Comment("Defines the leniency distance added on the server to the interaction range of a player when validating interact packets.")
+         public DoubleOr.Default clientInteractionLeniencyDistance = DoubleOr.Default.USE_DEFAULT;
++        public boolean useLinearXpFormula = false;
++        public int linearXpPerLevel = 17;
+     }
+ 
+     public BlockUpdates blockUpdates;
+diff --git a/src/main/java/net/minecraft/world/entity/player/Player.java b/src/main/java/net/minecraft/world/entity/player/Player.java
+index e00bcd424d500aa4b76d0fd88eb4b9558d3aece5..591c42581d9f47efe3d3a3bbfe33bcf1883d96f1 100644
+--- a/src/main/java/net/minecraft/world/entity/player/Player.java
++++ b/src/main/java/net/minecraft/world/entity/player/Player.java
+@@ -1844,6 +1844,9 @@ public abstract class Player extends LivingEntity {
+     }
+ 
+     public int getXpNeededForNextLevel() {
++        if(io.papermc.paper.configuration.GlobalConfiguration.get().misc.useLinearXpFormula){
++            return io.papermc.paper.configuration.GlobalConfiguration.get().misc.linearXpPerLevel;
++        }
+         return this.experienceLevel >= 30 ? 112 + (this.experienceLevel - 30) * 9 : (this.experienceLevel >= 15 ? 37 + (this.experienceLevel - 15) * 5 : 7 + this.experienceLevel * 2); // Paper - diff on change; calculateTotalExperiencePoints
+     }
+     // Paper start - send while respecting visibility

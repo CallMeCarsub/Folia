@@ -5,7 +5,7 @@ Subject: [PATCH] Don't count trades not added towards addOffers
 
 
 diff --git a/src/main/java/net/minecraft/world/entity/npc/AbstractVillager.java b/src/main/java/net/minecraft/world/entity/npc/AbstractVillager.java
-index 8a907164cb1f8a51c46a3e6f578867545a83a73a..4511734df5731663f04d0a64bed0037c0471c308 100644
+index a1dee26ed47a423fbad57b9b2ec98b4f58b9470b..653bb46bc45fd21952ddeb8e035bd4e105f5078f 100644
 --- a/src/main/java/net/minecraft/world/entity/npc/AbstractVillager.java
 +++ b/src/main/java/net/minecraft/world/entity/npc/AbstractVillager.java
 @@ -299,9 +299,10 @@ public abstract class AbstractVillager extends AgeableMob implements InventoryCa

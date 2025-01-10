@@ -5,7 +5,7 @@ Subject: [PATCH] Add linear XP config entries
 
 
 diff --git a/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java b/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
-index 7e906e8324280ef80222305812527886e7b7ce9e..94c251ee0cda8df45ffe3c5d7ff076bd428f59cc 100644
+index 4ed27c10b432ceebf4447ab8007bc3a1be09a06e..8d32766484b01a26d75331de59da70a42c2c7b82 100644
 --- a/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
 +++ b/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
 @@ -344,6 +344,8 @@ public class GlobalConfiguration extends ConfigurationPart {
@@ -18,10 +18,10 @@ index 7e906e8324280ef80222305812527886e7b7ce9e..94c251ee0cda8df45ffe3c5d7ff076bd
  
      public BlockUpdates blockUpdates;
 diff --git a/src/main/java/net/minecraft/world/entity/player/Player.java b/src/main/java/net/minecraft/world/entity/player/Player.java
-index e00bcd424d500aa4b76d0fd88eb4b9558d3aece5..591c42581d9f47efe3d3a3bbfe33bcf1883d96f1 100644
+index f2817f1c29431ef2c4a45dc9ef90f06d4982f7c9..5c4cf9382bfb1ecbeeefd3fa84fd2d6c8ffa1fc4 100644
 --- a/src/main/java/net/minecraft/world/entity/player/Player.java
 +++ b/src/main/java/net/minecraft/world/entity/player/Player.java
-@@ -1844,6 +1844,9 @@ public abstract class Player extends LivingEntity {
+@@ -1847,6 +1847,9 @@ public abstract class Player extends LivingEntity {
      }
  
      public int getXpNeededForNextLevel() {

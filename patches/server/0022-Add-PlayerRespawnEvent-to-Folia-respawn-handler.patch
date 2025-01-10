@@ -1,32 +1,35 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Loki Rautio <lokirautio@gmail.com>
-Date: Fri, 10 Jan 2025 07:57:15 -0600
-Subject: [PATCH] Add PlayerRespawnEvent to Folia respawn handling
+Date: Fri, 10 Jan 2025 09:24:32 -0600
+Subject: [PATCH] Add PlayerRespawnEvent to Folia respawn handler
 
 
 diff --git a/src/main/java/net/minecraft/server/level/ServerPlayer.java b/src/main/java/net/minecraft/server/level/ServerPlayer.java
-index 23f852ede94bce4d000c8fcaa8fba5d4800b533c..5d485994e3a6fdc40448757c874efec75bd47f60 100644
+index 23f852ede94bce4d000c8fcaa8fba5d4800b533c..f280eb8cc051d5adb63258ba256c72c1e9b5b55b 100644
 --- a/src/main/java/net/minecraft/server/level/ServerPlayer.java
 +++ b/src/main/java/net/minecraft/server/level/ServerPlayer.java
-@@ -1782,10 +1782,41 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+@@ -1782,9 +1782,48 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
          // must be manually removed from connections, delay until after reset() so that we do not trip any thread checks
          this.serverLevel().getCurrentWorldData().connections.remove(this.connection.connection);
  
 -        BlockPos respawnPos = this.getRespawnPosition();
 -        float respawnAngle = this.getRespawnAngle();
+-        boolean isRespawnForced = this.isRespawnForced();
 +        /// Folia Fix Start
 +
 +        BlockPos respawnPosTemp = this.getRespawnPosition();
 +        float respawnAngleTemp = this.getRespawnAngle();
-         boolean isRespawnForced = this.isRespawnForced();
- 
++        boolean isRespawnForced;
++        boolean isPluginRespawn;
++
 +        BlockPos respawnPos;
 +        float respawnAngle;
 +
 +        Player respawnPlayer = this.getBukkitEntity();
 +        ServerLevel relevantRespawnWorld = respawnWorld == null ? this.server.getLevel(Level.OVERWORLD) : respawnWorld;
++        BlockPos relevantSharedSpawnPos = relevantRespawnWorld.getSharedSpawnPos();
 +        Location defaultLocation = respawnPosTemp == null ?
-+            CraftLocation.toBukkit(relevantRespawnWorld.getSharedSpawnPos(), relevantRespawnWorld.getWorld(), relevantRespawnWorld.getSharedSpawnAngle(), 0f) :
++            CraftLocation.toBukkit(relevantSharedSpawnPos, relevantRespawnWorld.getWorld(), relevantRespawnWorld.getSharedSpawnAngle(), 0f) :
 +            CraftLocation.toBukkit(respawnPosTemp, respawnWorld.getWorld(), respawnAngleTemp, 0f);
 +
 +        // Paper start - respawn flags
@@ -34,21 +37,37 @@ index 23f852ede94bce4d000c8fcaa8fba5d4800b533c..5d485994e3a6fdc40448757c874efec7
 +        if (reason == org.bukkit.event.player.PlayerRespawnEvent.RespawnReason.END_PORTAL) {
 +            builder.add(org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag.END_PORTAL);
 +        }
-+        boolean isAnchorSpawn = respawnPosTemp != null && respawnWorld.getBlockState(respawnPosTemp).is(net.minecraft.world.level.block.Blocks.RESPAWN_ANCHOR);
-+        boolean isBedSpawn = respawnPosTemp != null && respawnWorld.getBlockState(respawnPosTemp).is(net.minecraft.tags.BlockTags.BEDS);
++        boolean isAnchorSpawn = relevantRespawnWorld.getBlockState(respawnPosTemp != null ? respawnPosTemp : relevantSharedSpawnPos).is(net.minecraft.world.level.block.Blocks.RESPAWN_ANCHOR);
++        boolean isBedSpawn = relevantRespawnWorld.getBlockState(respawnPosTemp != null ? respawnPosTemp : relevantSharedSpawnPos).is(net.minecraft.tags.BlockTags.BEDS);
 +        PlayerRespawnEvent respawnEvent = new PlayerRespawnEvent(respawnPlayer, defaultLocation, isBedSpawn, isAnchorSpawn, reason, builder);
 +        // Paper end - respawn flags
-+        this.level().getCraftServer().getPluginManager().callEvent(respawnEvent);
++        if(!alive || reason == org.bukkit.event.player.PlayerRespawnEvent.RespawnReason.END_PORTAL) {
++            this.level().getCraftServer().getPluginManager().callEvent(respawnEvent);
++        }
 +        if(!respawnEvent.getRespawnLocation().equals(defaultLocation)){
 +            respawnPos = CraftLocation.toBlockPosition(respawnEvent.getRespawnLocation());
 +            respawnAngle = respawnEvent.getRespawnLocation().getYaw();
++            isRespawnForced = true;
++            isPluginRespawn = true;
 +        }else{
 +            respawnPos = respawnPosTemp;
 +            respawnAngle = respawnAngleTemp;
++            isRespawnForced = this.isRespawnForced();
++            isPluginRespawn = false;
 +        }
-+        
-+        /// Folia Fix End
 +
++        /// Folia Fix End
+ 
          ca.spottedleaf.concurrentutil.completable.CallbackCompletable<Location> spawnPosComplete =
              new ca.spottedleaf.concurrentutil.completable.CallbackCompletable<>();
-         boolean[] usedRespawnAnchor = new boolean[1];
+@@ -1829,7 +1868,9 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+         });
+ 
+         // find and modify respawn block state
+-        if (respawnWorld == null || respawnPos == null) {
++        if(isPluginRespawn){
++            selectSpawnWithoutRadius(respawnWorld, this, respawnPos, spawnPosComplete);
++        }else if (respawnWorld == null || respawnPos == null) {
+             // default to regular spawn
+             fudgeSpawnLocation(this.server.getLevel(Level.OVERWORLD), this, spawnPosComplete);
+         } else {

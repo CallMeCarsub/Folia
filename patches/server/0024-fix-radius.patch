@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Fri, 10 Jan 2025 10:12:04 -0600
+Subject: [PATCH] fix radius
+
+
+diff --git a/src/main/java/net/minecraft/server/level/ServerPlayer.java b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+index be0aff8ec5d1c83c7c12a5257a129e1fd72c92fa..d6fbd382b9b180a7c1f3182a927801b6f97344d7 100644
+--- a/src/main/java/net/minecraft/server/level/ServerPlayer.java
++++ b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+@@ -636,7 +636,7 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+         do {
+             if (attemptCount[0] >= maxAttempts) {
+ 
+-                LOGGER.warn("Found no spawn in radius for player '" + player.getName() + "', ignoring radius");
++                LOGGER.warn("Found no spawn in radius '" + originRadius + "' for player '" + player.getName() + "', ignoring radius");
+ 
+                 selectSpawnWithoutRadius(world, player, origin, toComplete);
+                 return;
+@@ -1864,7 +1864,7 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+ 
+         // find and modify respawn block state
+         if(isPluginRespawn){
+-            fudgeSpawnLocation(respawnWorld, this, respawnPos, 64, spawnPosComplete);
++            fudgeSpawnLocation(respawnWorld, this, respawnPos, 256, spawnPosComplete);
+         }else if (respawnWorld == null || respawnPos == null) {
+             // default to regular spawn
+             ServerLevel defaultLevel = this.server.getLevel(Level.OVERWORLD);

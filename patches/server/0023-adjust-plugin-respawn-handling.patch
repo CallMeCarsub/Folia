@@ -1,0 +1,121 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Fri, 10 Jan 2025 09:55:32 -0600
+Subject: [PATCH] adjust plugin respawn handling
+
+
+diff --git a/src/main/java/net/minecraft/server/level/ServerPlayer.java b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+index f280eb8cc051d5adb63258ba256c72c1e9b5b55b..be0aff8ec5d1c83c7c12a5257a129e1fd72c92fa 100644
+--- a/src/main/java/net/minecraft/server/level/ServerPlayer.java
++++ b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+@@ -544,10 +544,7 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+     // Folia start - region threading
+     private static final int SPAWN_RADIUS_SELECTION_SEARCH = 5;
+ 
+-    private static BlockPos getRandomSpawn(ServerLevel world, RandomSource random) {
+-        BlockPos spawn = world.getSharedSpawnPos();
+-        double radius = (double)Math.max(0, world.getGameRules().getInt(GameRules.RULE_SPAWN_RADIUS));
+-
++    private static BlockPos getRandomSpawn(ServerLevel world, RandomSource random, BlockPos spawn, double radius) {
+         double spawnX = (double)spawn.getX() + 0.5;
+         double spawnZ = (double)spawn.getZ() + 0.5;
+ 
+@@ -595,11 +592,11 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+     }
+ 
+     // rets false when another attempt is required
+-    private static boolean trySpawnOrSchedule(ServerLevel world, ServerPlayer player, RandomSource random, int[] attemptCount, int maxAttempts,
++    private static boolean trySpawnOrSchedule(ServerLevel world, ServerPlayer player, RandomSource random, BlockPos origin, double originRadius, int[] attemptCount, int maxAttempts,
+                                               ca.spottedleaf.concurrentutil.completable.CallbackCompletable<Location> toComplete) {
+         ++attemptCount[0];
+ 
+-        BlockPos rough = getRandomSpawn(world, random);
++        BlockPos rough = getRandomSpawn(world, random, origin, originRadius);
+ 
+         // add 2 to ensure that the chunks are loaded for collision checks
+         int minX = (rough.getX() - (SPAWN_RADIUS_SELECTION_SEARCH + 2)) >> 4;
+@@ -614,7 +611,7 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+                     BlockPos selected = findSpawnAround(world, player, rough);
+                     if (selected == null) {
+                         // run more spawn attempts
+-                        selectSpawn(world, player, random, attemptCount, maxAttempts, toComplete);
++                        selectSpawn(world, player, random, origin, originRadius, attemptCount, maxAttempts, toComplete);
+                         return;
+                     }
+ 
+@@ -634,18 +631,17 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+         return true;
+     }
+ 
+-    private static void selectSpawn(ServerLevel world, ServerPlayer player, RandomSource random, int[] attemptCount, int maxAttempts,
++    private static void selectSpawn(ServerLevel world, ServerPlayer player, RandomSource random, BlockPos origin, double originRadius, int[] attemptCount, int maxAttempts,
+                                     ca.spottedleaf.concurrentutil.completable.CallbackCompletable<Location> toComplete) {
+         do {
+             if (attemptCount[0] >= maxAttempts) {
+-                BlockPos sharedSpawn = world.getSharedSpawnPos();
+ 
+                 LOGGER.warn("Found no spawn in radius for player '" + player.getName() + "', ignoring radius");
+ 
+-                selectSpawnWithoutRadius(world, player, sharedSpawn, toComplete);
++                selectSpawnWithoutRadius(world, player, origin, toComplete);
+                 return;
+             }
+-        } while (!trySpawnOrSchedule(world, player, random, attemptCount, maxAttempts, toComplete));
++        } while (!trySpawnOrSchedule(world, player, random, origin, originRadius, attemptCount, maxAttempts, toComplete));
+     }
+ 
+ 
+@@ -665,13 +661,12 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+         );
+     }
+ 
+-    public static void fudgeSpawnLocation(ServerLevel world, ServerPlayer player, ca.spottedleaf.concurrentutil.completable.CallbackCompletable<Location> toComplete) { // Folia - region threading
+-        BlockPos blockposition = world.getSharedSpawnPos();
++    public static void fudgeSpawnLocation(ServerLevel world, ServerPlayer player, BlockPos origin, double originRadius, ca.spottedleaf.concurrentutil.completable.CallbackCompletable<Location> toComplete) { // Folia - region threading
+ 
+         if (world.dimensionType().hasSkyLight() && world.serverLevelData.getGameType() != GameType.ADVENTURE) { // CraftBukkit
+-            selectSpawn(world, player, player.random, new int[1], 500, toComplete);
++            selectSpawn(world, player, player.random, origin, originRadius, new int[1], 500, toComplete);
+         } else {
+-            selectSpawnWithoutRadius(world, player, blockposition, toComplete);
++            selectSpawnWithoutRadius(world, player, origin, toComplete);
+         }
+ 
+     }
+@@ -1869,10 +1864,11 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+ 
+         // find and modify respawn block state
+         if(isPluginRespawn){
+-            selectSpawnWithoutRadius(respawnWorld, this, respawnPos, spawnPosComplete);
++            fudgeSpawnLocation(respawnWorld, this, respawnPos, 64, spawnPosComplete);
+         }else if (respawnWorld == null || respawnPos == null) {
+             // default to regular spawn
+-            fudgeSpawnLocation(this.server.getLevel(Level.OVERWORLD), this, spawnPosComplete);
++            ServerLevel defaultLevel = this.server.getLevel(Level.OVERWORLD);
++            fudgeSpawnLocation(defaultLevel, this, defaultLevel.getSharedSpawnPos(), (double)Math.max(0, defaultLevel.getGameRules().getInt(GameRules.RULE_SPAWN_RADIUS)), spawnPosComplete);
+         } else {
+             // load chunk for block
+             // give at least 1 radius of loaded chunks so that we do not sync load anything
+@@ -1893,7 +1889,8 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+                             com.destroystokyo.paper.event.player.PlayerSetSpawnEvent.Cause.PLAYER_RESPAWN
+                         );
+                         // default to regular spawn
+-                        fudgeSpawnLocation(this.server.getLevel(Level.OVERWORLD), this, spawnPosComplete);
++                        ServerLevel defaultLevel = this.server.getLevel(Level.OVERWORLD);
++                        fudgeSpawnLocation(defaultLevel, this, defaultLevel.getSharedSpawnPos(), (double)Math.max(0, defaultLevel.getGameRules().getInt(GameRules.RULE_SPAWN_RADIUS)), spawnPosComplete);
+                         return;
+                     }
+ 
+diff --git a/src/main/java/net/minecraft/server/players/PlayerList.java b/src/main/java/net/minecraft/server/players/PlayerList.java
+index a809622f43a45fd77bbb07a24f21c841a90dc07a..a50d7297ca1f64883b0e6e84d069463d2351313b 100644
+--- a/src/main/java/net/minecraft/server/players/PlayerList.java
++++ b/src/main/java/net/minecraft/server/players/PlayerList.java
+@@ -330,7 +330,7 @@ public abstract class PlayerList {
+         // Folia end - region threading - rewrite login process
+         if (optional.isEmpty() || invalidPlayerWorld[0]) {
+             // Paper end - reset to main world spawn if first spawn or invalid world
+-            ServerPlayer.fudgeSpawnLocation(worldserver1, player, toComplete); // Paper - MC-200092 - fix first spawn pos yaw being ignored // Folia - region threading
++            ServerPlayer.fudgeSpawnLocation(worldserver1, player, worldserver1.getSharedSpawnPos(), (double)Math.max(0, worldserver1.getGameRules().getInt(GameRules.RULE_SPAWN_RADIUS)), toComplete); // Paper - MC-200092 - fix first spawn pos yaw being ignored // Folia - region threading
+         } else {
+             worldserver1.loadChunksForMoveAsync(
+                 player.getBoundingBox(),

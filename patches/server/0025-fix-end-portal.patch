@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Sat, 11 Jan 2025 15:04:32 -0600
+Subject: [PATCH] fix end portal
+
+
+diff --git a/src/main/java/net/minecraft/server/level/ServerPlayer.java b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+index d6fbd382b9b180a7c1f3182a927801b6f97344d7..cde780e04b1d8460dc757342ccf957c3fa63686f 100644
+--- a/src/main/java/net/minecraft/server/level/ServerPlayer.java
++++ b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+@@ -1796,11 +1796,13 @@ public class ServerPlayer extends net.minecraft.world.entity.player.Player imple
+ 
+         // Paper start - respawn flags
+         com.google.common.collect.ImmutableSet.Builder<org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag> builder = com.google.common.collect.ImmutableSet.builder();
++        boolean endPortal = false;
+         if (reason == org.bukkit.event.player.PlayerRespawnEvent.RespawnReason.END_PORTAL) {
+             builder.add(org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag.END_PORTAL);
++            endPortal = true;
+         }
+-        boolean isAnchorSpawn = relevantRespawnWorld.getBlockState(respawnPosTemp != null ? respawnPosTemp : relevantSharedSpawnPos).is(net.minecraft.world.level.block.Blocks.RESPAWN_ANCHOR);
+-        boolean isBedSpawn = relevantRespawnWorld.getBlockState(respawnPosTemp != null ? respawnPosTemp : relevantSharedSpawnPos).is(net.minecraft.tags.BlockTags.BEDS);
++        boolean isAnchorSpawn = endPortal ? false : relevantRespawnWorld.getBlockState(respawnPosTemp != null ? respawnPosTemp : relevantSharedSpawnPos).is(net.minecraft.world.level.block.Blocks.RESPAWN_ANCHOR);
++        boolean isBedSpawn = endPortal ? false : relevantRespawnWorld.getBlockState(respawnPosTemp != null ? respawnPosTemp : relevantSharedSpawnPos).is(net.minecraft.tags.BlockTags.BEDS);
+         PlayerRespawnEvent respawnEvent = new PlayerRespawnEvent(respawnPlayer, defaultLocation, isBedSpawn, isAnchorSpawn, reason, builder);
+         // Paper end - respawn flags
+         if(!alive || reason == org.bukkit.event.player.PlayerRespawnEvent.RespawnReason.END_PORTAL) {

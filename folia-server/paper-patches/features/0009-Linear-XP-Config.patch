@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Mon, 14 Apr 2025 20:16:40 -0500
+Subject: [PATCH] Linear XP Config
+
+Adds Linear XP configuration options
+
+diff --git a/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java b/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
+index 610abaee663b7573a56c0a0a6dd4ab9c0224b173..c1844c1d4aedc9e728b7c7ef4e07c74028d78a4a 100644
+--- a/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
++++ b/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
+@@ -356,6 +356,10 @@ public class GlobalConfiguration extends ConfigurationPart {
+         public IntOr.Default compressionLevel = IntOr.Default.USE_DEFAULT;
+         @Comment("Defines the leniency distance added on the server to the interaction range of a player when validating interact packets.")
+         public DoubleOr.Default clientInteractionLeniencyDistance = DoubleOr.Default.USE_DEFAULT;
++        @Comment("Whether to make all XP levels cost the same amount of XP (linear) or the vanilla system (exponential).")
++        public boolean useLinearXpFormula = false;
++        @Comment("When using linear XP, how much XP should be required per level")
++        public int linearXpPerLevel = 47;
+     }
+ 
+     public BlockUpdates blockUpdates;

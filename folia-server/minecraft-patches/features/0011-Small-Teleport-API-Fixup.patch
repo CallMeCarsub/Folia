@@ -1,0 +1,84 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Fri, 13 Jun 2025 19:27:05 -0500
+Subject: [PATCH] Small Teleport API Fixup
+
+based on luminol
+
+diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
+index 2cd2ce1060f567be6c72b7bc9d02651ec7166203..ba1295af67c3bc4591cff0d555ac92936abe41f2 100644
+--- a/net/minecraft/world/entity/Entity.java
++++ b/net/minecraft/world/entity/Entity.java
+@@ -133,6 +133,12 @@ import net.minecraft.world.phys.shapes.VoxelShape;
+ import net.minecraft.world.scores.PlayerTeam;
+ import net.minecraft.world.scores.ScoreHolder;
+ import net.minecraft.world.scores.Team;
++import org.bukkit.Location;
++import org.bukkit.craftbukkit.CraftWorld;
++import org.bukkit.craftbukkit.entity.CraftPlayer;
++import org.bukkit.event.Event;
++import org.bukkit.event.entity.EntityTeleportEvent;
++import org.bukkit.event.player.PlayerTeleportEvent;
+ import org.slf4j.Logger;
+ 
+ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess, ScoreHolder, ca.spottedleaf.moonrise.patches.chunk_system.entity.ChunkSystemEntity, ca.spottedleaf.moonrise.patches.entity_tracker.EntityTrackerEntity {  // Paper - rewrite chunk system // Paper - optimise entity tracker
+@@ -4123,6 +4129,59 @@ public abstract class Entity implements SyncedDataHolder, Nameable, EntityAccess
+         }
+ 
+         // TODO any events that can modify go HERE
++        // SMPOnline start - Add missing teleportation apis
++        org.bukkit.Location destinationLoc;
++
++        if (pitch == null) {
++            if (yaw == null) {
++                destinationLoc = io.papermc.paper.util.MCUtil.toLocation(destination, pos, Float.NaN, Float.NaN);
++            } else {
++                destinationLoc = io.papermc.paper.util.MCUtil.toLocation(destination, pos, yaw, Float.NaN);
++            }
++        }else {
++            if (yaw == null) {
++                destinationLoc = io.papermc.paper.util.MCUtil.toLocation(destination, pos, Float.NaN, pitch);
++            }else {
++                destinationLoc = io.papermc.paper.util.MCUtil.toLocation(destination, pos, yaw, pitch);
++            }
++        }
++
++        Location finalDestination;
++        if(this.getBukkitEntity() instanceof org.bukkit.entity.Player player){
++            final PlayerTeleportEvent wrapped = new PlayerTeleportEvent(
++                    (CraftPlayer) this.getBukkitEntity(),
++                    this.getBukkitEntity().getLocation(),
++                    destinationLoc,
++                    cause
++            );
++            wrapped.callEvent();
++            finalDestination = wrapped.isCancelled() ? null : wrapped.getTo();
++        }else{
++            final EntityTeleportEvent wrapped = new EntityTeleportEvent(
++                    this.getBukkitEntity(),
++                    this.getBukkitEntity().getLocation(),
++                    destinationLoc
++            );
++            wrapped.callEvent();
++            finalDestination = wrapped.isCancelled() ? null : wrapped.getTo();
++        }
++
++        if(finalDestination == null){
++            return false;
++        }
++
++        pitch = finalDestination.getPitch();
++        if(pitch.isNaN()){
++            pitch = null;
++        }
++        yaw = finalDestination.getYaw();
++        if(yaw.isNaN()){
++            yaw = null;
++        }
++        pos = new Vec3(finalDestination.toVector().toVector3f());
++        destination = ((CraftWorld)finalDestination.getWorld()).getHandle();
++
++        // SMPOnline end
+ 
+         // check for same region
+         if (destination == this.level()) {

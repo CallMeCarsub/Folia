@@ -1,0 +1,19 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Thu, 19 Jun 2025 15:27:46 -0500
+Subject: [PATCH] Allow force filling the trades during TradeAcquire
+
+
+diff --git a/net/minecraft/world/entity/npc/AbstractVillager.java b/net/minecraft/world/entity/npc/AbstractVillager.java
+index e22749e55dcab2a023a3010c34b1cd45fe5aa895..2df839ac2b2c41e445b7bdbb4e411229bc106e8f 100644
+--- a/net/minecraft/world/entity/npc/AbstractVillager.java
++++ b/net/minecraft/world/entity/npc/AbstractVillager.java
+@@ -274,7 +274,7 @@ public abstract class AbstractVillager extends AgeableMob implements InventoryCa
+         ArrayList<VillagerTrades.ItemListing> list = Lists.newArrayList(newTrades);
+         int i = 0;
+ 
+-        while (i < maxNumbers && !list.isEmpty()) {
++        while (i < maxNumbers && givenMerchantOffers.size() < maxNumbers && !list.isEmpty()) { // SMPOnline - Allow forcing trades
+             MerchantOffer offer = list.remove(this.random.nextInt(list.size())).getOffer(this, this.random);
+             if (offer != null) {
+                 // CraftBukkit start

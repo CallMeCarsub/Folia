@@ -1,0 +1,114 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Sat, 28 Jun 2025 09:56:26 -0500
+Subject: [PATCH] fix event more
+
+
+diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
+index 6f3177a2fdce983fd614e0830d6b82c84f9d123a..bd35e3b680754f9b91973ab28af2f6dd6f136204 100644
+--- a/net/minecraft/server/level/ServerPlayer.java
++++ b/net/minecraft/server/level/ServerPlayer.java
+@@ -1640,33 +1640,61 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+         });
+ 
+         // find and modify respawn block state
+-        if (respawnWorld == null || respawnPos == null) {
+-            // default to regular spawn
+-            // SMPOnline - Start
+-            ca.spottedleaf.concurrentutil.completable.CallbackCompletable<org.bukkit.Location> fudgeComplete =
+-                    new ca.spottedleaf.concurrentutil.completable.CallbackCompletable<>();
+-            fudgeComplete.addWaiter((loc, throwable) -> {
+-
+-                org.bukkit.entity.Player spawnPlayer = this.getBukkitEntity();
+-                Location baseLocation = loc.clone();
+-                com.google.common.collect.ImmutableSet.Builder<org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag> builder = com.google.common.collect.ImmutableSet.builder();
+-                if (reason == org.bukkit.event.player.PlayerRespawnEvent.RespawnReason.END_PORTAL) {
+-                    builder.add(org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag.END_PORTAL);
+-                }
+-                org.bukkit.event.player.PlayerRespawnEvent ev = new org.bukkit.event.player.PlayerRespawnEvent(
+-                        spawnPlayer,
+-                        baseLocation.clone(),
+-                        false,
+-                        false,
+-                        reason,
+-                        builder
++        // SMPOnline - Start
++        ca.spottedleaf.concurrentutil.completable.CallbackCompletable<org.bukkit.Location> fudgeComplete =
++                new ca.spottedleaf.concurrentutil.completable.CallbackCompletable<>();
++        fudgeComplete.addWaiter((loc, throwable) -> {
++            //LOGGER.info("fudgeComplete called");
++            org.bukkit.entity.Player spawnPlayer = this.getBukkitEntity();
++            com.google.common.collect.ImmutableSet.Builder<org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag> builder = com.google.common.collect.ImmutableSet.builder();
++            if (reason == org.bukkit.event.player.PlayerRespawnEvent.RespawnReason.END_PORTAL) {
++                builder.add(org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag.END_PORTAL);
++            }
++            org.bukkit.event.player.PlayerRespawnEvent ev = new org.bukkit.event.player.PlayerRespawnEvent(
++                    spawnPlayer,
++                    loc.clone(),
++                    false,
++                    false,
++                    reason,
++                    builder
++            );
++            this.server.server.getPluginManager().callEvent(ev);
++            if(!ev.getRespawnLocation().equals(loc)){
++                //LOGGER.info("Spawn was changed, using " + ev.getRespawnLocation());
++                Location newLocation = ev.getRespawnLocation();
++                ServerLevel finalRespawnWorld = ((CraftWorld)newLocation.getWorld()).getHandle();
++                BlockPos finalRespawnPos = new BlockPos(newLocation.blockX(), newLocation.blockY(), newLocation.blockZ());
++                Float finalRespawnAngle = newLocation.getYaw();
++                boolean finalIsRespawnForced = true;
++                ServerPlayer.this.setRespawnPosition(
++                        finalRespawnWorld.dimension(), finalRespawnPos, finalRespawnAngle, finalIsRespawnForced, false,
++                        com.destroystokyo.paper.event.player.PlayerSetSpawnEvent.Cause.PLAYER_RESPAWN
+                 );
+-                Bukkit.getServer().getPluginManager().callEvent(ev);
+-                spawnPosComplete.complete(ev.getRespawnLocation());
+-            });
+-            // SMPOnline - End
+-            fudgeSpawnLocation(this.server.getLevel(Level.OVERWORLD), this, fudgeComplete);
++
++                // finished now, pass the location on
++                respawnWorld.moonrise$loadChunksAsync(finalRespawnPos, 16,
++                        ca.spottedleaf.concurrentutil.util.Priority.HIGHER,
++                        (aa) -> {
++                            spawnPosComplete.complete(
++                                    io.papermc.paper.util.MCUtil.toLocation(
++                                            finalRespawnWorld,
++                                            new Vec3(finalRespawnPos.getX(), finalRespawnPos.getY(), finalRespawnPos.getZ()),
++                                            finalRespawnAngle,
++                                            0.0f
++                                    )
++                            );
++                        });
++                return;
++            }//else{
++            //    LOGGER.info("Spawn was not changed, using default");
++            //}
++            spawnPosComplete.complete(ev.getRespawnLocation());
++        });
++        // SMPOnline - End
++        if (respawnWorld == null || respawnPos == null) {
++            fudgeSpawnLocation(this.server.getLevel(Level.OVERWORLD), this, fudgeComplete); // SMPOnline - fudge completion
+         } else {
++            //LOGGER.info("Specific Respawn Pass");
+             // load chunk for block
+             // give at least 1 radius of loaded chunks so that we do not sync load anything
+             int radiusBlocks = 16;
+@@ -1686,7 +1714,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+                             com.destroystokyo.paper.event.player.PlayerSetSpawnEvent.Cause.PLAYER_RESPAWN
+                         );
+                         // default to regular spawn
+-                        fudgeSpawnLocation(this.server.getLevel(Level.OVERWORLD), this, spawnPosComplete);
++                        fudgeSpawnLocation(this.server.getLevel(Level.OVERWORLD), this, fudgeComplete);
+                         return;
+                     }
+ 
+@@ -1714,6 +1742,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+                     BlockPos finalRespawnPos;
+                     Float finalRespawnAngle;
+                     Boolean finalIsRespawnForced;
++                    //LOGGER.info("Respawn Location is " + ev.getRespawnLocation());
+                     if(!ev.getRespawnLocation().equals(baseLocation)){
+                         Location newLocation = ev.getRespawnLocation();
+                         finalRespawnWorld = ((CraftWorld)newLocation.getWorld()).getHandle();

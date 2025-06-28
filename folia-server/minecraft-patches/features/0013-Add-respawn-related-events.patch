@@ -1,0 +1,159 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Fri, 27 Jun 2025 16:04:13 -0500
+Subject: [PATCH] Add respawn related events
+
+
+diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
+index dbf9231b1f01576906b90a3ddf0bf2cbbeb4590a..6f3177a2fdce983fd614e0830d6b82c84f9d123a 100644
+--- a/net/minecraft/server/level/ServerPlayer.java
++++ b/net/minecraft/server/level/ServerPlayer.java
+@@ -176,6 +176,10 @@ import net.minecraft.world.scores.ScoreAccess;
+ import net.minecraft.world.scores.ScoreHolder;
+ import net.minecraft.world.scores.Team;
+ import net.minecraft.world.scores.criteria.ObjectiveCriteria;
++import org.bukkit.Bukkit;
++import org.bukkit.Location;
++import org.bukkit.Server;
++import org.bukkit.craftbukkit.CraftWorld;
+ import org.slf4j.Logger;
+ 
+ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patches.chunk_system.player.ChunkSystemServerPlayer { // Paper - rewrite chunk system
+@@ -1638,7 +1642,30 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+         // find and modify respawn block state
+         if (respawnWorld == null || respawnPos == null) {
+             // default to regular spawn
+-            fudgeSpawnLocation(this.server.getLevel(Level.OVERWORLD), this, spawnPosComplete);
++            // SMPOnline - Start
++            ca.spottedleaf.concurrentutil.completable.CallbackCompletable<org.bukkit.Location> fudgeComplete =
++                    new ca.spottedleaf.concurrentutil.completable.CallbackCompletable<>();
++            fudgeComplete.addWaiter((loc, throwable) -> {
++
++                org.bukkit.entity.Player spawnPlayer = this.getBukkitEntity();
++                Location baseLocation = loc.clone();
++                com.google.common.collect.ImmutableSet.Builder<org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag> builder = com.google.common.collect.ImmutableSet.builder();
++                if (reason == org.bukkit.event.player.PlayerRespawnEvent.RespawnReason.END_PORTAL) {
++                    builder.add(org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag.END_PORTAL);
++                }
++                org.bukkit.event.player.PlayerRespawnEvent ev = new org.bukkit.event.player.PlayerRespawnEvent(
++                        spawnPlayer,
++                        baseLocation.clone(),
++                        false,
++                        false,
++                        reason,
++                        builder
++                );
++                Bukkit.getServer().getPluginManager().callEvent(ev);
++                spawnPosComplete.complete(ev.getRespawnLocation());
++            });
++            // SMPOnline - End
++            fudgeSpawnLocation(this.server.getLevel(Level.OVERWORLD), this, fudgeComplete);
+         } else {
+             // load chunk for block
+             // give at least 1 radius of loaded chunks so that we do not sync load anything
+@@ -1667,15 +1694,58 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+                     boolean isBed = respawnWorld.getBlockState(respawnPos).is(net.minecraft.tags.BlockTags.BEDS);
+                     usedRespawnAnchor[0] = !alive && isRespawnAnchor;
+ 
++                    // SMPOnline - Start
++                    org.bukkit.entity.Player spawnPlayer = this.getBukkitEntity();
++                    Location baseLocation = new Location(respawnWorld.getWorld(), respawnPos.getX(), respawnPos.getY(), respawnPos.getZ(), respawnAngle, 0);
++                    com.google.common.collect.ImmutableSet.Builder<org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag> builder = com.google.common.collect.ImmutableSet.builder();
++                    if (reason == org.bukkit.event.player.PlayerRespawnEvent.RespawnReason.END_PORTAL) {
++                        builder.add(org.bukkit.event.player.PlayerRespawnEvent.RespawnFlag.END_PORTAL);
++                    }
++                    org.bukkit.event.player.PlayerRespawnEvent ev = new org.bukkit.event.player.PlayerRespawnEvent(
++                            spawnPlayer,
++                            baseLocation.clone(),
++                            isBed,
++                            isRespawnAnchor,
++                            reason,
++                            builder
++                    );
++                    Bukkit.getServer().getPluginManager().callEvent(ev);
++                    ServerLevel finalRespawnWorld;
++                    BlockPos finalRespawnPos;
++                    Float finalRespawnAngle;
++                    Boolean finalIsRespawnForced;
++                    if(!ev.getRespawnLocation().equals(baseLocation)){
++                        Location newLocation = ev.getRespawnLocation();
++                        finalRespawnWorld = ((CraftWorld)newLocation.getWorld()).getHandle();
++                        finalRespawnPos = new BlockPos(newLocation.blockX(), newLocation.blockY(), newLocation.blockZ());
++                        finalRespawnAngle = newLocation.getYaw();
++                        finalIsRespawnForced = true;
++                    }else{
++                        finalRespawnWorld = respawnWorld;
++                        finalRespawnPos = respawnPos;
++                        finalRespawnAngle = respawnAngle;
++                        finalIsRespawnForced = isRespawnForced;
++                    }
++                    // SMPOnline - End
++
+                     ServerPlayer.this.setRespawnPosition(
+-                        respawnWorld.dimension(), respawnPos, respawnAngle, isRespawnForced, false,
++                            finalRespawnWorld.dimension(), finalRespawnPos, finalRespawnAngle, finalIsRespawnForced, false,
+                         com.destroystokyo.paper.event.player.PlayerSetSpawnEvent.Cause.PLAYER_RESPAWN
+                     );
+ 
+                     // finished now, pass the location on
+-                    spawnPosComplete.complete(
+-                        io.papermc.paper.util.MCUtil.toLocation(respawnWorld, spawnPos.position(), spawnPos.yaw(), 0.0f)
+-                    );
++                    respawnWorld.moonrise$loadChunksAsync(finalRespawnPos, radiusBlocks,
++                            ca.spottedleaf.concurrentutil.util.Priority.HIGHER,
++                            (aa) -> {
++                                spawnPosComplete.complete(
++                                        io.papermc.paper.util.MCUtil.toLocation(
++                                                finalRespawnWorld,
++                                                new Vec3(finalRespawnPos.getX(), finalRespawnPos.getY(), finalRespawnPos.getZ()),
++                                                finalRespawnAngle,
++                                                0.0f
++                                        )
++                                );
++                            });
+                     return;
+                 }
+             );
+diff --git a/net/minecraft/server/network/ServerConfigurationPacketListenerImpl.java b/net/minecraft/server/network/ServerConfigurationPacketListenerImpl.java
+index 00fb8a5dda1f305a0e0f947bbb75a3f40b5318cc..4cfc49bed1740b3c3507f7c4b639e030ac8eeeff 100644
+--- a/net/minecraft/server/network/ServerConfigurationPacketListenerImpl.java
++++ b/net/minecraft/server/network/ServerConfigurationPacketListenerImpl.java
+@@ -35,6 +35,7 @@ import net.minecraft.server.network.config.SynchronizeRegistriesTask;
+ import net.minecraft.server.packs.repository.KnownPack;
+ import net.minecraft.server.players.PlayerList;
+ import net.minecraft.world.flag.FeatureFlags;
++import org.bukkit.Location;
+ import org.slf4j.Logger;
+ 
+ public class ServerConfigurationPacketListenerImpl extends ServerCommonPacketListenerImpl implements ServerConfigurationPacketListener, TickablePacketListener {
+@@ -171,7 +172,12 @@ public class ServerConfigurationPacketListenerImpl extends ServerCommonPacketLis
+             // the loadSpawnForNewPlayer function always completes the completable once the chunks were loaded,
+             // on the load callback for those chunks (so on the same region)
+             // this guarantees the chunk cannot unload under our feet
+-            toComplete.addWaiter((org.bukkit.Location loc, Throwable t) -> {
++            toComplete.addWaiter((org.bukkit.Location vanillaLoc, Throwable t) -> {
++                org.bukkit.entity.Player spawnPlayer = playerForLogin.getBukkitEntity();
++                org.spigotmc.event.player.PlayerSpawnLocationEvent ev = new org.spigotmc.event.player.PlayerSpawnLocationEvent(spawnPlayer, vanillaLoc);
++                this.cserver.getPluginManager().callEvent(ev); // SMPOnline - region threading
++
++                Location loc = ev.getSpawnLocation();
+                 int chunkX = net.minecraft.util.Mth.floor(loc.getX()) >> 4;
+                 int chunkZ = net.minecraft.util.Mth.floor(loc.getZ()) >> 4;
+ 
+diff --git a/net/minecraft/world/entity/npc/AbstractVillager.java b/net/minecraft/world/entity/npc/AbstractVillager.java
+index 652211531ba3ba718992d6943602c0c09ec861a7..4722e1dc94a88f39cad66fec709c8e8861f08040 100644
+--- a/net/minecraft/world/entity/npc/AbstractVillager.java
++++ b/net/minecraft/world/entity/npc/AbstractVillager.java
+@@ -272,10 +272,10 @@ public abstract class AbstractVillager extends AgeableMob implements InventoryCa
+ 
+     protected void addOffersFromItemListings(MerchantOffers givenMerchantOffers, VillagerTrades.ItemListing[] newTrades, int maxNumbers) {
+         ArrayList<VillagerTrades.ItemListing> list = Lists.newArrayList(newTrades);
+-        int originalTradeAmount = givenMerchantOffers.size();
++        boolean cancel = false;
+         int i = 0;
+ 
+-        while (i < maxNumbers && (givenMerchantOffers.size() - originalTradeAmount) < maxNumbers && !list.isEmpty()) { // SMPOnline - Allow forcing trades
++        while (i < maxNumbers && !cancel && !list.isEmpty()) { // SMPOnline - Allow forcing trades
+             MerchantOffer offer = list.remove(this.random.nextInt(list.size())).getOffer(this, this.random);
+             if (offer != null) {
+                 // CraftBukkit start

@@ -1,0 +1,75 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Sat, 5 Jul 2025 21:53:32 -0500
+Subject: [PATCH] make player ticking lag compensated too
+
+
+diff --git a/net/minecraft/server/level/ChunkMap.java b/net/minecraft/server/level/ChunkMap.java
+index 5c507be097051de9a43a31bbc6190c3db7688667..51744bbe06c243c981e9121b8ce9af3b0ffd576b 100644
+--- a/net/minecraft/server/level/ChunkMap.java
++++ b/net/minecraft/server/level/ChunkMap.java
+@@ -94,6 +94,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
+ import net.minecraft.world.level.storage.DimensionDataStorage;
+ import net.minecraft.world.level.storage.LevelStorageSource;
+ import org.apache.commons.lang3.mutable.MutableBoolean;
++import org.bukkit.Statistic;
+ import org.slf4j.Logger;
+ 
+ public class ChunkMap extends ChunkStorage implements ChunkHolder.PlayerProvider, GeneratingChunkMap, ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemChunkMap { // Paper - rewrite chunk system
+diff --git a/net/minecraft/world/entity/player/Player.java b/net/minecraft/world/entity/player/Player.java
+index e25a2bfec795a3157d3dab4b74056e2674b0f394..65c41d00521d52dcdd21baa8d5b16ce4523683fe 100644
+--- a/net/minecraft/world/entity/player/Player.java
++++ b/net/minecraft/world/entity/player/Player.java
+@@ -7,6 +7,8 @@ import com.google.common.math.IntMath;
+ import com.mojang.authlib.GameProfile;
+ import com.mojang.datafixers.util.Either;
+ import com.mojang.logging.LogUtils;
++
++import java.time.Instant;
+ import java.util.Collection;
+ import java.util.List;
+ import java.util.Map;
+@@ -204,6 +206,7 @@ public abstract class Player extends LivingEntity {
+     // CraftBukkit start
+     public boolean fauxSleeping;
+     public int oldLevel = -1;
++    public Instant lastPlayTimeTick = Instant.now();
+ 
+     @Override
+     public org.bukkit.craftbukkit.entity.CraftHumanEntity getBukkitEntity() {
+@@ -303,19 +306,24 @@ public abstract class Player extends LivingEntity {
+ 
+         this.moveCloak();
+         if (this instanceof ServerPlayer serverPlayer) {
+-            this.foodData.tick(serverPlayer);
+-            this.awardStat(Stats.PLAY_TIME);
+-            this.awardStat(Stats.TOTAL_WORLD_TIME);
+-            if (this.isAlive()) {
+-                this.awardStat(Stats.TIME_SINCE_DEATH);
+-            }
++            long millisSinceLastTick = Instant.now().toEpochMilli() - this.lastPlayTimeTick.toEpochMilli();
++            this.lastPlayTimeTick = Instant.now();
++            int ticksToCatchup = (int) Math.max(1, Math.round(millisSinceLastTick / 50d));
++            for(int i = 0; i < ticksToCatchup; i++) {
++                this.foodData.tick(serverPlayer);
++                this.awardStat(Stats.PLAY_TIME);
++                this.awardStat(Stats.TOTAL_WORLD_TIME);
++                if (this.isAlive()) {
++                    this.awardStat(Stats.TIME_SINCE_DEATH);
++                }
+ 
+-            if (this.isDiscrete()) {
+-                this.awardStat(Stats.CROUCH_TIME);
+-            }
++                if (this.isDiscrete()) {
++                    this.awardStat(Stats.CROUCH_TIME);
++                }
+ 
+-            if (!this.isSleeping()) {
+-                this.awardStat(Stats.TIME_SINCE_REST);
++                if (!this.isSleeping()) {
++                    this.awardStat(Stats.TIME_SINCE_REST);
++                }
+             }
+         }
+ 

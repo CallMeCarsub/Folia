@@ -1,0 +1,89 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Sat, 5 Jul 2025 19:11:42 -0500
+Subject: [PATCH] Furnace lag compensation
+
+
+diff --git a/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java b/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
+index cb4b8567c029e3a53aafda2755e3773ea8b95af7..6a043aff1678e51397cca7dbfedb031687e722f5 100644
+--- a/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
++++ b/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
+@@ -3,6 +3,8 @@ package net.minecraft.world.level.block.entity;
+ import com.google.common.collect.Lists;
+ import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
+ import it.unimi.dsi.fastutil.objects.Reference2IntMap.Entry;
++
++import java.time.Instant;
+ import java.util.List;
+ import javax.annotation.Nullable;
+ import net.minecraft.core.BlockPos;
+@@ -58,6 +60,7 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+     int litTotalTime;
+     public int cookingTimer;
+     public int cookingTotalTime;
++    public Instant lastTick = Instant.now();
+     protected final ContainerData dataAccess = new ContainerData() {
+         @Override
+         public int get(int index) {
+@@ -184,10 +187,14 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+     }
+ 
+     public static void serverTick(ServerLevel level, BlockPos pos, BlockState state, AbstractFurnaceBlockEntity furnace) {
++        long millisSinceLastTick = Instant.now().toEpochMilli() - furnace.lastTick.toEpochMilli();
++        furnace.lastTick = Instant.now();
++        int ticksToCatchup = (int) Math.max(1, Math.round(millisSinceLastTick / 50d));
++
+         boolean isLit = furnace.isLit();
+         boolean flag = false;
+         if (furnace.isLit()) {
+-            furnace.litTimeRemaining--;
++            furnace.litTimeRemaining -= ticksToCatchup;
+         }
+ 
+         ItemStack itemStack = furnace.items.get(1);
+@@ -209,9 +216,9 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+                 org.bukkit.craftbukkit.inventory.CraftItemStack fuel = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemStack);
+ 
+                 org.bukkit.event.inventory.FurnaceBurnEvent furnaceBurnEvent = new org.bukkit.event.inventory.FurnaceBurnEvent(
+-                    org.bukkit.craftbukkit.block.CraftBlock.at(level, pos),
+-                    fuel,
+-                    furnace.getBurnDuration(level.fuelValues(), itemStack)
++                        org.bukkit.craftbukkit.block.CraftBlock.at(level, pos),
++                        fuel,
++                        furnace.getBurnDuration(level.fuelValues(), itemStack)
+                 );
+                 if (!furnaceBurnEvent.callEvent()) return;
+                 // CraftBukkit end
+@@ -237,10 +244,10 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+                     org.bukkit.inventory.CookingRecipe<?> recipe = (org.bukkit.inventory.CookingRecipe<?>) recipeHolder.toBukkitRecipe();
+ 
+                     org.bukkit.event.inventory.FurnaceStartSmeltEvent event = new org.bukkit.event.inventory.FurnaceStartSmeltEvent(
+-                        org.bukkit.craftbukkit.block.CraftBlock.at(level, pos),
+-                        source,
+-                        recipe,
+-                        getTotalCookTime(level, furnace, furnace.recipeType, furnace.cookSpeedMultiplier) // Paper - cook speed multiplier API
++                            org.bukkit.craftbukkit.block.CraftBlock.at(level, pos),
++                            source,
++                            recipe,
++                            getTotalCookTime(level, furnace, furnace.recipeType, furnace.cookSpeedMultiplier) // Paper - cook speed multiplier API
+                     );
+                     event.callEvent();
+ 
+@@ -248,7 +255,7 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+                 }
+                 // CraftBukkit end
+ 
+-                furnace.cookingTimer++;
++                furnace.cookingTimer+= ticksToCatchup;
+                 if (furnace.cookingTimer >= furnace.cookingTotalTime) { // Paper - cook speed multiplier API
+                     furnace.cookingTimer = 0;
+                     furnace.cookingTotalTime = getTotalCookTime(level, furnace, furnace.recipeType, furnace.cookSpeedMultiplier); // Paper - cook speed multiplier API
+@@ -262,7 +269,7 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+                 furnace.cookingTimer = 0;
+             }
+         } else if (!furnace.isLit() && furnace.cookingTimer > 0) {
+-            furnace.cookingTimer = Mth.clamp(furnace.cookingTimer - 2, 0, furnace.cookingTotalTime);
++            furnace.cookingTimer = Mth.clamp(furnace.cookingTimer - (2 * ticksToCatchup), 0, furnace.cookingTotalTime);
+         }
+ 
+         if (isLit != furnace.isLit()) {

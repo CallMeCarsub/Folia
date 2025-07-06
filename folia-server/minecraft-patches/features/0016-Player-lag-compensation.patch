@@ -1,11 +1,11 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Loki Rautio <lokirautio@gmail.com>
-Date: Sat, 5 Jul 2025 21:56:40 -0500
+Date: Sat, 5 Jul 2025 22:20:17 -0500
 Subject: [PATCH] Player lag compensation
 
 
 diff --git a/net/minecraft/world/entity/player/Player.java b/net/minecraft/world/entity/player/Player.java
-index e25a2bfec795a3157d3dab4b74056e2674b0f394..9e59061b42dcf78cd9b4d6dbd9e7dff3a1fcfd38 100644
+index e25a2bfec795a3157d3dab4b74056e2674b0f394..1521936ea7f0beaf2a7e54eaf1174df68bc9a130 100644
 --- a/net/minecraft/world/entity/player/Player.java
 +++ b/net/minecraft/world/entity/player/Player.java
 @@ -7,6 +7,8 @@ import com.google.common.math.IntMath;
@@ -25,7 +25,7 @@ index e25a2bfec795a3157d3dab4b74056e2674b0f394..9e59061b42dcf78cd9b4d6dbd9e7dff3
  
      @Override
      public org.bukkit.craftbukkit.entity.CraftHumanEntity getBukkitEntity() {
-@@ -262,17 +265,21 @@ public abstract class Player extends LivingEntity {
+@@ -262,19 +265,23 @@ public abstract class Player extends LivingEntity {
  
      @Override
      public void tick() {
@@ -40,15 +40,18 @@ index e25a2bfec795a3157d3dab4b74056e2674b0f394..9e59061b42dcf78cd9b4d6dbd9e7dff3
  
          if (this.takeXpDelay > 0) {
 -            this.takeXpDelay--;
-+            this.takeXpDelay-=ticksToCatchup;
++            this.takeXpDelay= Math.max(0,this.takeXpDelay - ticksToCatchup);
          }
  
          if (this.isSleeping()) {
 -            this.sleepCounter++;
 +            this.sleepCounter+=ticksToCatchup;
              // Paper start - Add PlayerDeepSleepEvent
-             if (this.sleepCounter == SLEEP_DURATION) {
+-            if (this.sleepCounter == SLEEP_DURATION) {
++            if (this.sleepCounter >= SLEEP_DURATION) {
                  if (!new io.papermc.paper.event.player.PlayerDeepSleepEvent((org.bukkit.entity.Player) getBukkitEntity()).callEvent()) {
+                     this.sleepCounter = Integer.MIN_VALUE;
+                 }
 @@ -288,7 +295,7 @@ public abstract class Player extends LivingEntity {
                  this.stopSleepInBed(false, true);
              }
@@ -102,7 +105,7 @@ index e25a2bfec795a3157d3dab4b74056e2674b0f394..9e59061b42dcf78cd9b4d6dbd9e7dff3
          this.updatePlayerPose();
          if (this.currentImpulseContextResetGraceTime > 0) {
 -            this.currentImpulseContextResetGraceTime--;
-+            this.currentImpulseContextResetGraceTime-=ticksToCatchup;
++            this.currentImpulseContextResetGraceTime= Math.max(0, this.currentImpulseContextResetGraceTime - ticksToCatchup);
          }
      }
  

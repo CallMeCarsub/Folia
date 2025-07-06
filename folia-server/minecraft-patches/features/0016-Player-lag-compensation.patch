@@ -1,11 +1,11 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Loki Rautio <lokirautio@gmail.com>
-Date: Sat, 5 Jul 2025 21:55:04 -0500
+Date: Sat, 5 Jul 2025 21:56:40 -0500
 Subject: [PATCH] Player lag compensation
 
 
 diff --git a/net/minecraft/world/entity/player/Player.java b/net/minecraft/world/entity/player/Player.java
-index e25a2bfec795a3157d3dab4b74056e2674b0f394..25aa6d48823db745edca4b7efdeaa8ec9f9586e8 100644
+index e25a2bfec795a3157d3dab4b74056e2674b0f394..9e59061b42dcf78cd9b4d6dbd9e7dff3a1fcfd38 100644
 --- a/net/minecraft/world/entity/player/Player.java
 +++ b/net/minecraft/world/entity/player/Player.java
 @@ -7,6 +7,8 @@ import com.google.common.math.IntMath;
@@ -90,4 +90,19 @@ index e25a2bfec795a3157d3dab4b74056e2674b0f394..25aa6d48823db745edca4b7efdeaa8ec
 +                }
              }
          }
+ 
+@@ -340,10 +349,12 @@ public abstract class Player extends LivingEntity {
+             this.turtleHelmetTick();
+         }
+ 
+-        this.cooldowns.tick();
++        for(int j = 0; j < ticksToCatchup; j++) {
++            this.cooldowns.tick();
++        }
+         this.updatePlayerPose();
+         if (this.currentImpulseContextResetGraceTime > 0) {
+-            this.currentImpulseContextResetGraceTime--;
++            this.currentImpulseContextResetGraceTime-=ticksToCatchup;
+         }
+     }
  

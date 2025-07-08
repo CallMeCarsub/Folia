@@ -1,0 +1,94 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Mon, 7 Jul 2025 21:34:07 -0500
+Subject: [PATCH] Better furnace lag compensation
+
+
+diff --git a/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java b/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
+index 6a043aff1678e51397cca7dbfedb031687e722f5..d94d931ea6b99bad2a933ceb0acc1479a2ef1b2a 100644
+--- a/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
++++ b/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
+@@ -193,9 +193,6 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+ 
+         boolean isLit = furnace.isLit();
+         boolean flag = false;
+-        if (furnace.isLit()) {
+-            furnace.litTimeRemaining -= ticksToCatchup;
+-        }
+ 
+         ItemStack itemStack = furnace.items.get(1);
+         ItemStack itemStack1 = furnace.items.get(0);
+@@ -237,41 +234,47 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+                 }
+             }
+ 
+-            if (furnace.isLit() && canBurn(level.registryAccess(), recipeHolder, singleRecipeInput, furnace.items, maxStackSize)) {
+-                // CraftBukkit start
+-                if (recipeHolder != null && furnace.cookingTimer == 0) {
+-                    org.bukkit.craftbukkit.inventory.CraftItemStack source = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(furnace.items.get(0));
+-                    org.bukkit.inventory.CookingRecipe<?> recipe = (org.bukkit.inventory.CookingRecipe<?>) recipeHolder.toBukkitRecipe();
+-
+-                    org.bukkit.event.inventory.FurnaceStartSmeltEvent event = new org.bukkit.event.inventory.FurnaceStartSmeltEvent(
+-                            org.bukkit.craftbukkit.block.CraftBlock.at(level, pos),
+-                            source,
+-                            recipe,
+-                            getTotalCookTime(level, furnace, furnace.recipeType, furnace.cookSpeedMultiplier) // Paper - cook speed multiplier API
+-                    );
+-                    event.callEvent();
+-
+-                    furnace.cookingTotalTime = event.getTotalCookTime();
+-                }
+-                // CraftBukkit end
++            for(int cT = 0; cT < ticksToCatchup; cT++) {
++                if (furnace.isLit() && canBurn(level.registryAccess(), recipeHolder, singleRecipeInput, furnace.items, maxStackSize)) {
++                    // CraftBukkit start
++                    if (recipeHolder != null && furnace.cookingTimer == 0) {
++                        org.bukkit.craftbukkit.inventory.CraftItemStack source = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(furnace.items.get(0));
++                        org.bukkit.inventory.CookingRecipe<?> recipe = (org.bukkit.inventory.CookingRecipe<?>) recipeHolder.toBukkitRecipe();
++
++                        org.bukkit.event.inventory.FurnaceStartSmeltEvent event = new org.bukkit.event.inventory.FurnaceStartSmeltEvent(
++                                org.bukkit.craftbukkit.block.CraftBlock.at(level, pos),
++                                source,
++                                recipe,
++                                getTotalCookTime(level, furnace, furnace.recipeType, furnace.cookSpeedMultiplier) // Paper - cook speed multiplier API
++                        );
++                        event.callEvent();
+ 
+-                furnace.cookingTimer+= ticksToCatchup;
+-                if (furnace.cookingTimer >= furnace.cookingTotalTime) { // Paper - cook speed multiplier API
+-                    furnace.cookingTimer = 0;
+-                    furnace.cookingTotalTime = getTotalCookTime(level, furnace, furnace.recipeType, furnace.cookSpeedMultiplier); // Paper - cook speed multiplier API
+-                    if (burn(level.registryAccess(), recipeHolder, singleRecipeInput, furnace.items, maxStackSize, level, furnace.worldPosition)) { // CraftBukkit
+-                        furnace.setRecipeUsed(recipeHolder);
++                        furnace.cookingTotalTime = event.getTotalCookTime();
+                     }
++                    // CraftBukkit end
++
++                    furnace.cookingTimer += 1;
++                    if (furnace.cookingTimer >= furnace.cookingTotalTime) { // Paper - cook speed multiplier API
++                        furnace.cookingTimer = 0;
++                        furnace.cookingTotalTime = getTotalCookTime(level, furnace, furnace.recipeType, furnace.cookSpeedMultiplier); // Paper - cook speed multiplier API
++                        if (burn(level.registryAccess(), recipeHolder, singleRecipeInput, furnace.items, maxStackSize, level, furnace.worldPosition)) { // CraftBukkit
++                            furnace.setRecipeUsed(recipeHolder);
++                        }
+ 
+-                    flag = true;
++                        flag = true;
++                    }
++                } else {
++                    furnace.cookingTimer = 0;
+                 }
+-            } else {
+-                furnace.cookingTimer = 0;
+             }
+         } else if (!furnace.isLit() && furnace.cookingTimer > 0) {
+             furnace.cookingTimer = Mth.clamp(furnace.cookingTimer - (2 * ticksToCatchup), 0, furnace.cookingTotalTime);
+         }
+ 
++        if (furnace.isLit()) {
++            furnace.litTimeRemaining -= ticksToCatchup;
++        }
++
+         if (isLit != furnace.isLit()) {
+             flag = true;
+             state = state.setValue(AbstractFurnaceBlock.LIT, Boolean.valueOf(furnace.isLit()));

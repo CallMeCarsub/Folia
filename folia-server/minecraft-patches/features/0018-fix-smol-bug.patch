@@ -1,0 +1,154 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Wed, 9 Jul 2025 02:05:06 -0500
+Subject: [PATCH] fix smol bug
+
+
+diff --git a/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java b/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
+index d94d931ea6b99bad2a933ceb0acc1479a2ef1b2a..edc938984347e1d006e54b5a31f84fa5494f8814 100644
+--- a/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
++++ b/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
+@@ -6,6 +6,7 @@ import it.unimi.dsi.fastutil.objects.Reference2IntMap.Entry;
+ 
+ import java.time.Instant;
+ import java.util.List;
++import java.util.concurrent.atomic.AtomicBoolean;
+ import javax.annotation.Nullable;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.Direction;
+@@ -189,52 +190,53 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+     public static void serverTick(ServerLevel level, BlockPos pos, BlockState state, AbstractFurnaceBlockEntity furnace) {
+         long millisSinceLastTick = Instant.now().toEpochMilli() - furnace.lastTick.toEpochMilli();
+         furnace.lastTick = Instant.now();
+-        int ticksToCatchup = (int) Math.max(1, Math.round(millisSinceLastTick / 50d));
+-
+-        boolean isLit = furnace.isLit();
+-        boolean flag = false;
+-
+-        ItemStack itemStack = furnace.items.get(1);
+-        ItemStack itemStack1 = furnace.items.get(0);
+-        boolean flag1 = !itemStack1.isEmpty();
+-        boolean flag2 = !itemStack.isEmpty();
+-        if (furnace.isLit() || flag2 && flag1) {
+-            SingleRecipeInput singleRecipeInput = new SingleRecipeInput(itemStack1);
+-            RecipeHolder<? extends AbstractCookingRecipe> recipeHolder;
+-            if (flag1) {
+-                recipeHolder = furnace.quickCheck.getRecipeFor(singleRecipeInput, level).orElse(null);
+-            } else {
+-                recipeHolder = null;
+-            }
++        int ticksToCatchup = millisSinceLastTick >= 1000 ? 1 : (int) Math.max(1, Math.round(millisSinceLastTick / 50d));
++        AtomicBoolean isLit = new AtomicBoolean();
++        AtomicBoolean flag = new AtomicBoolean(false);
++        for(int cT = 0; cT < ticksToCatchup; cT++) {
++            isLit.set(furnace.isLit());
++
++            ItemStack itemStack = furnace.items.get(1);
++            ItemStack itemStack1 = furnace.items.get(0);
++            boolean flag1 = !itemStack1.isEmpty();
++            boolean flag2 = !itemStack.isEmpty();
++            if (furnace.isLit() || flag2 && flag1) {
++                SingleRecipeInput singleRecipeInput = new SingleRecipeInput(itemStack1);
++                RecipeHolder<? extends AbstractCookingRecipe> recipeHolder;
++                if (flag1) {
++                    recipeHolder = furnace.quickCheck.getRecipeFor(singleRecipeInput, level).orElse(null);
++                } else {
++                    recipeHolder = null;
++                }
++
++                int maxStackSize = furnace.getMaxStackSize();
++                if (!furnace.isLit() && canBurn(level.registryAccess(), recipeHolder, singleRecipeInput, furnace.items, maxStackSize)) {
++                    // CraftBukkit start
++                    org.bukkit.craftbukkit.inventory.CraftItemStack fuel = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemStack);
++
++                    org.bukkit.event.inventory.FurnaceBurnEvent furnaceBurnEvent = new org.bukkit.event.inventory.FurnaceBurnEvent(
++                            org.bukkit.craftbukkit.block.CraftBlock.at(level, pos),
++                            fuel,
++                            furnace.getBurnDuration(level.fuelValues(), itemStack)
++                    );
++                    if (!furnaceBurnEvent.callEvent()) return;
++                    // CraftBukkit end
+ 
+-            int maxStackSize = furnace.getMaxStackSize();
+-            if (!furnace.isLit() && canBurn(level.registryAccess(), recipeHolder, singleRecipeInput, furnace.items, maxStackSize)) {
+-                // CraftBukkit start
+-                org.bukkit.craftbukkit.inventory.CraftItemStack fuel = org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(itemStack);
+-
+-                org.bukkit.event.inventory.FurnaceBurnEvent furnaceBurnEvent = new org.bukkit.event.inventory.FurnaceBurnEvent(
+-                        org.bukkit.craftbukkit.block.CraftBlock.at(level, pos),
+-                        fuel,
+-                        furnace.getBurnDuration(level.fuelValues(), itemStack)
+-                );
+-                if (!furnaceBurnEvent.callEvent()) return;
+-                // CraftBukkit end
+-
+-                furnace.litTimeRemaining = furnaceBurnEvent.getBurnTime(); // CraftBukkit - respect event output
+-                furnace.litTotalTime = furnace.litTimeRemaining;
+-                if (furnace.isLit() && furnaceBurnEvent.isBurning()) { // CraftBukkit - respect event output
+-                    flag = true;
+-                    if (flag2 && furnaceBurnEvent.willConsumeFuel()) { // Paper - add consumeFuel to FurnaceBurnEvent
+-                        Item item = itemStack.getItem();
+-                        itemStack.shrink(1);
+-                        if (itemStack.isEmpty()) {
+-                            furnace.items.set(1, item.getCraftingRemainder());
++                    furnace.litTimeRemaining = furnaceBurnEvent.getBurnTime(); // CraftBukkit - respect event output
++                    furnace.litTotalTime = furnace.litTimeRemaining;
++                    if (furnace.isLit() && furnaceBurnEvent.isBurning()) { // CraftBukkit - respect event output
++                        flag.set(true);
++                        if (flag2 && furnaceBurnEvent.willConsumeFuel()) { // Paper - add consumeFuel to FurnaceBurnEvent
++                            Item item = itemStack.getItem();
++                            itemStack.shrink(1);
++                            if (itemStack.isEmpty()) {
++                                furnace.items.set(1, item.getCraftingRemainder());
++                            }
+                         }
+                     }
+                 }
+-            }
+ 
+-            for(int cT = 0; cT < ticksToCatchup; cT++) {
++
+                 if (furnace.isLit() && canBurn(level.registryAccess(), recipeHolder, singleRecipeInput, furnace.items, maxStackSize)) {
+                     // CraftBukkit start
+                     if (recipeHolder != null && furnace.cookingTimer == 0) {
+@@ -261,29 +263,31 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+                             furnace.setRecipeUsed(recipeHolder);
+                         }
+ 
+-                        flag = true;
++                        flag.set(true);
+                     }
+                 } else {
+                     furnace.cookingTimer = 0;
+                 }
++
++            } else if (!furnace.isLit() && furnace.cookingTimer > 0) {
++                furnace.cookingTimer = Mth.clamp(furnace.cookingTimer - (2 * 1), 0, furnace.cookingTotalTime);
+             }
+-        } else if (!furnace.isLit() && furnace.cookingTimer > 0) {
+-            furnace.cookingTimer = Mth.clamp(furnace.cookingTimer - (2 * ticksToCatchup), 0, furnace.cookingTotalTime);
+-        }
+ 
+-        if (furnace.isLit()) {
+-            furnace.litTimeRemaining -= ticksToCatchup;
++            if (furnace.isLit()) {
++                furnace.litTimeRemaining -= 1;
++            }
+         }
+ 
+-        if (isLit != furnace.isLit()) {
+-            flag = true;
++        if (isLit.get() != furnace.isLit()) {
++            flag.set(true);
+             state = state.setValue(AbstractFurnaceBlock.LIT, Boolean.valueOf(furnace.isLit()));
+             level.setBlock(pos, state, 3);
+         }
+ 
+-        if (flag) {
++        if (flag.get()) {
+             setChanged(level, pos, state);
+         }
++
+     }
+ 
+     private static boolean canBurn(

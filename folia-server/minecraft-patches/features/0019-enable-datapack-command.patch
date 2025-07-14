@@ -1,0 +1,19 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Mon, 14 Jul 2025 09:05:05 -0500
+Subject: [PATCH] enable datapack command
+
+
+diff --git a/net/minecraft/commands/Commands.java b/net/minecraft/commands/Commands.java
+index 009e6405a11a391adca41a7c4ecafbf3254d799d..15d12e8ef1ea5eecb4acb8e70cf5389a5bb01372 100644
+--- a/net/minecraft/commands/Commands.java
++++ b/net/minecraft/commands/Commands.java
+@@ -163,7 +163,7 @@ public class Commands {
+         //CloneCommands.register(this.dispatcher, context); // Folia - region threading - TODO
+         DamageCommand.register(this.dispatcher, context);
+         //DataCommands.register(this.dispatcher); // Folia - region threading - TODO
+-        //DataPackCommand.register(this.dispatcher); // Folia - region threading - TODO
++        DataPackCommand.register(this.dispatcher); // Folia - region threading - TODO
+         //DebugCommand.register(this.dispatcher); // Folia - region threading - TODO
+         DefaultGameModeCommands.register(this.dispatcher);
+         DifficultyCommand.register(this.dispatcher);

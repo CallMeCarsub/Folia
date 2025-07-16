@@ -1,0 +1,19 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Wed, 16 Jul 2025 18:05:57 -0500
+Subject: [PATCH] fix race condition
+
+
+diff --git a/net/minecraft/server/MinecraftServer.java b/net/minecraft/server/MinecraftServer.java
+index be82a6b43b1f0c644c53d08a6e16bc2876c8c1e0..57da9d7da6a7fc7e85446f9921fa6e7bc11c4ad5 100644
+--- a/net/minecraft/server/MinecraftServer.java
++++ b/net/minecraft/server/MinecraftServer.java
+@@ -1655,7 +1655,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                     continue;
+                 }
+                 org.bukkit.craftbukkit.entity.CraftEntity bukkit = entity.getBukkitEntityRaw();
+-                if (bukkit != null) {
++                if (bukkit != null && !bukkit.taskScheduler.isRetired()) {
+                     bukkit.taskScheduler.executeTick();
+                     ++tickedEntitySchedulers; // Folia - profiler
+                 }

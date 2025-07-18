@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Thu, 17 Jul 2025 19:45:40 -0500
+Subject: [PATCH] Fix crafter slots
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/inventory/CraftAbstractInventoryView.java b/src/main/java/org/bukkit/craftbukkit/inventory/CraftAbstractInventoryView.java
+index 8697adc6341eaa83df60bbfdb36af3351a29b0c9..4e4cb93220b4e6ee7d0e48b7ccdf250e1f316084 100644
+--- a/src/main/java/org/bukkit/craftbukkit/inventory/CraftAbstractInventoryView.java
++++ b/src/main/java/org/bukkit/craftbukkit/inventory/CraftAbstractInventoryView.java
+@@ -73,7 +73,7 @@ public abstract class CraftAbstractInventoryView implements InventoryView {
+ 
+         // Player crafting slots are indexed differently. The matrix is caught by the first return.
+         // Creative mode is the same, except that you can't see the crafting slots (but the IDs are still used)
+-        if (this.getType() == InventoryType.CRAFTING || this.getType() == InventoryType.CREATIVE) {
++        if (this.getType() == InventoryType.CRAFTING || this.getType() == InventoryType.CREATIVE || this.getType() == InventoryType.CRAFTER) {
+             /*
+              * Raw Slots:
+              *
+@@ -100,6 +100,15 @@ public abstract class CraftAbstractInventoryView implements InventoryView {
+              * 0  1  2  3  4  5  6  7  8
+              */
+ 
++            // The Crafter's result slot is indexed at the end rather than in first 10 slots
++            if(this.getType() == InventoryType.CRAFTER){
++                if(slot == 45){
++                    // return the relevant slot (? untested)
++                    return 9;
++                }
++                slot += 5;
++            }
++
+             if (slot < 4) {
+                 // Send [5,8] to [39,36]
+                 return 39 - slot;

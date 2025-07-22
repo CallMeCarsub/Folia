@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Tue, 22 Jul 2025 02:02:12 -0500
+Subject: [PATCH] fix evil respawn
+
+
+diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
+index bd35e3b680754f9b91973ab28af2f6dd6f136204..f417c8a3cb5e4b7769bec032c007d2fc98134bc9 100644
+--- a/net/minecraft/server/level/ServerPlayer.java
++++ b/net/minecraft/server/level/ServerPlayer.java
+@@ -180,6 +180,9 @@ import org.bukkit.Bukkit;
+ import org.bukkit.Location;
+ import org.bukkit.Server;
+ import org.bukkit.craftbukkit.CraftWorld;
++import org.bukkit.craftbukkit.util.CraftLocation;
++import org.bukkit.entity.ExperienceOrb;
++import org.bukkit.event.entity.CreatureSpawnEvent;
+ import org.slf4j.Logger;
+ 
+ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patches.chunk_system.player.ChunkSystemServerPlayer { // Paper - rewrite chunk system
+@@ -1742,6 +1745,8 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+                     BlockPos finalRespawnPos;
+                     Float finalRespawnAngle;
+                     Boolean finalIsRespawnForced;
++                    Vec3 exactRespawn;
++
+                     //LOGGER.info("Respawn Location is " + ev.getRespawnLocation());
+                     if(!ev.getRespawnLocation().equals(baseLocation)){
+                         Location newLocation = ev.getRespawnLocation();
+@@ -1749,11 +1754,13 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+                         finalRespawnPos = new BlockPos(newLocation.blockX(), newLocation.blockY(), newLocation.blockZ());
+                         finalRespawnAngle = newLocation.getYaw();
+                         finalIsRespawnForced = true;
++                        exactRespawn = CraftLocation.toVec3D(newLocation);
+                     }else{
+                         finalRespawnWorld = respawnWorld;
+                         finalRespawnPos = respawnPos;
+                         finalRespawnAngle = respawnAngle;
+                         finalIsRespawnForced = isRespawnForced;
++                        exactRespawn = finalRespawnPos.getBottomCenter();
+                     }
+                     // SMPOnline - End
+ 
+@@ -1769,7 +1776,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+                                 spawnPosComplete.complete(
+                                         io.papermc.paper.util.MCUtil.toLocation(
+                                                 finalRespawnWorld,
+-                                                new Vec3(finalRespawnPos.getX(), finalRespawnPos.getY(), finalRespawnPos.getZ()),
++                                                new Vec3(exactRespawn.x(), exactRespawn.y(), exactRespawn.z()),
+                                                 finalRespawnAngle,
+                                                 0.0f
+                                         )

@@ -1,0 +1,19 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Wed, 23 Jul 2025 18:52:46 -0500
+Subject: [PATCH] fix bed position
+
+
+diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
+index f417c8a3cb5e4b7769bec032c007d2fc98134bc9..ee7bc19e0fce923f2fe15bf725fee02af8d1f27f 100644
+--- a/net/minecraft/server/level/ServerPlayer.java
++++ b/net/minecraft/server/level/ServerPlayer.java
+@@ -1760,7 +1760,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+                         finalRespawnPos = respawnPos;
+                         finalRespawnAngle = respawnAngle;
+                         finalIsRespawnForced = isRespawnForced;
+-                        exactRespawn = finalRespawnPos.getBottomCenter();
++                        exactRespawn = finalRespawnPos.getBottomCenter().add(0,isBed?0.6:1,0);
+                     }
+                     // SMPOnline - End
+ 

@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Fri, 29 Aug 2025 00:47:52 -0500
+Subject: [PATCH] re-enable command blocks
+
+idk why they're disabled anyway
+
+diff --git a/net/minecraft/world/level/BaseCommandBlock.java b/net/minecraft/world/level/BaseCommandBlock.java
+index b02b79ccedb8b87bc22270377dfc36e21ebe1724..352e1a61c2e8f53862f4fdb3543b47eef1709144 100644
+--- a/net/minecraft/world/level/BaseCommandBlock.java
++++ b/net/minecraft/world/level/BaseCommandBlock.java
+@@ -114,7 +114,7 @@ public abstract class BaseCommandBlock implements CommandSource {
+     }
+ 
+     public boolean performCommand(Level level) {
+-        if (true) return false; // Folia - region threading
++        //if (true) return false; // Folia - region threading
+         if (level.isClientSide || level.getGameTime() == this.lastExecution) {
+             return false;
+         } else if ("Searge".equalsIgnoreCase(this.command)) {

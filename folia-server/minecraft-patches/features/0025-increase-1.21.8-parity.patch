@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Wed, 3 Sep 2025 07:34:56 -0500
+Subject: [PATCH] increase 1.21.8 parity
+
+
+diff --git a/net/minecraft/network/protocol/game/ServerboundSelectBundleItemPacket.java b/net/minecraft/network/protocol/game/ServerboundSelectBundleItemPacket.java
+index 16e334101878d905a34772001950aa93028cf882..78dfd7282c80ff15f73205dfcb5c18044c8cabdd 100644
+--- a/net/minecraft/network/protocol/game/ServerboundSelectBundleItemPacket.java
++++ b/net/minecraft/network/protocol/game/ServerboundSelectBundleItemPacket.java
+@@ -12,6 +12,9 @@ public record ServerboundSelectBundleItemPacket(int slotId, int selectedItemInde
+ 
+     private ServerboundSelectBundleItemPacket(FriendlyByteBuf buffer) {
+         this(buffer.readVarInt(), buffer.readVarInt());
++        if (this.selectedItemIndex < 0 && this.selectedItemIndex != -1) {
++            throw new IllegalArgumentException("Invalid selectedItemIndex: " + this.selectedItemIndex);
++        }
+     }
+ 
+     private void write(FriendlyByteBuf buffer) {

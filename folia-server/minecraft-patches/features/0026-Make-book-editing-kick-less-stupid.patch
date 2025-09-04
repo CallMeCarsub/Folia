@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Loki Rautio <lokirautio@gmail.com>
+Date: Thu, 4 Sep 2025 16:56:05 -0500
+Subject: [PATCH] Make book editing kick less stupid
+
+why is this even like this
+
+diff --git a/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+index f87cfdac748a053f42a5e03b87bbf5a4dcc0a404..23036b730f6e8bae149f3019fcb461fba58ba424 100644
+--- a/net/minecraft/server/network/ServerGamePacketListenerImpl.java
++++ b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+@@ -12,6 +12,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMaps;
+ import it.unimi.dsi.fastutil.ints.Int2ObjectMap.Entry;
+ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+ import java.net.SocketAddress;
++import java.time.Instant;
+ import java.util.Collections;
+ import java.util.EnumSet;
+ import java.util.HashMap;
+@@ -295,7 +296,7 @@ public class ServerGamePacketListenerImpl
+     private long lastTick = Util.getMillis() / 50L; // Folia - region threading
+     private int allowedPlayerTicks = 1;
+     private long lastDropTick = Util.getMillis() / 50L; // Folia - region threading
+-    private long lastBookTick  = Util.getMillis() / 50L; // Folia - region threading
++    private long lastBookTick = System.currentTimeMillis(); // Util.getMillis() / 50L; // Folia - region threading // SMPOnline - Allow async book edit behavior smarterer
+     private int dropCount = 0;
+ 
+     private boolean hasMoved = false;
+@@ -1246,11 +1247,11 @@ public class ServerGamePacketListenerImpl
+         }
+         // Paper end - Book size limits
+         // CraftBukkit start
+-        if (this.lastBookTick + 20 > this.lastTick) { // Folia - region threading
++        if (this.lastBookTick + 100 > System.currentTimeMillis()) { // Folia - region threading // SMPOnline - Allow timed gap of edits
+             this.disconnectAsync(Component.literal("Book edited too quickly!"), org.bukkit.event.player.PlayerKickEvent.Cause.ILLEGAL_ACTION); // Paper - kick event cause // Paper - add proper async disconnect
+             return;
+         }
+-        this.lastBookTick = this.lastTick; // Folia - region threading
++        this.lastBookTick = System.currentTimeMillis(); // Folia - region threading
+         // CraftBukkit end
+         int slot = packet.slot();
+         if (Inventory.isHotbarSlot(slot) || slot == 40) {
